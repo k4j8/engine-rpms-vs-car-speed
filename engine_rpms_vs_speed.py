@@ -1,6 +1,6 @@
 #!/bin/python3
 
-"""Plots engine RPMs against car speed and performs clustering to deterimen
+"""Plots engine RPMs against car speed and performs clustering to determine
 gear number
 """
 
@@ -9,17 +9,18 @@ gear number
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-
 from sklearn.cluster import KMeans
 
-# Define source data
+# Define source data (required)
 SOURCE = 'rpms_chart_from_obd.xlsx'
 
-# Define column names from data
+# Define column names from data (required)
 SPEED = 'Speed (OBD)(mph)'
 ENGINE = ' Engine RPM(rpm)'
 
-# Define parameters for removing outliers
+# Define parameters for removing outliers (can leave at defaults below)
+GEARS = 5
+MIN_SPEED = 5
 MAX_ERROR = 1
 PERCTILE_ERROR_REMOVAL = 2
 
@@ -64,6 +65,18 @@ def remove_outliers(df, direction, percentile_target, error):
     return df, rows_removed
 
 
+def update_figure_layout(fig, legend):
+    """Updates figure and axis titles"""
+
+    fig.update_layout(title_text='Engine RPMs vs. Car Speed',
+                      showlegend=legend)
+    fig.update_xaxes(title='Car Speed (mph)')
+    fig.update_yaxes(title='Engine (RPMs)')
+    fig.show()
+
+    return fig
+
+
 def main():
     """Import data, perform clustering, then plot result"""
 
@@ -77,45 +90,55 @@ def main():
     df.replace(to_replace=np.inf, value=np.nan, inplace=True)
     df.dropna(subset='ratio', inplace=True)
 
-    # Drop rows where speed is less than 5
-    df.drop(df[df[SPEED] < 5].index, inplace=True)
+    # Drop rows where speed is less than MIN_SPEED
+    df.drop(df[df[SPEED] < MIN_SPEED].index, inplace=True)
 
     # K-Means
     data_1d = df['ratio'].values.reshape(-1, 1)
-    kmeans = KMeans(n_clusters=5).fit(data_1d)
+    kmeans = KMeans(n_clusters=GEARS).fit(data_1d)
     df['label'] = kmeans.labels_
 
-    # Graph
+    # Graph raw data
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(
+                             x=df[SPEED],
+                             y=df[ENGINE],
+                             mode='markers',
+                            ))
+    update_figure_layout(fig1, False)
+    fig1.write_image('Engine RPMs vs. Car Speed without clustering.png')
+
+    # Graph with clustering and removing outliers
     centers = kmeans.cluster_centers_[:, 0]  # centers of each cluster
     clusters = np.flipud(np.argsort(centers))  # rank each center from highest down
 
-    fig = go.Figure()
+    fig2 = go.Figure()
     for i, cluster in enumerate(clusters):
         gear_number = i + 1
-        df_for_label = df[df['label'] == cluster].copy()  # get df for this cluster only
+        df_cluster = df[df['label'] == cluster].copy()  # get df for this cluster only
 
-        speed = df_for_label[SPEED]
-        engine = df_for_label[ENGINE]
+        speed = df_cluster[SPEED]
+        engine = df_cluster[ENGINE]
         removing_low = True
         removing_high = True
         while removing_low or removing_high:
+            # Remove outliers
             m, c = mc(speed, engine)
-            df_for_label['distance from best-fit'] = abs(m * speed - engine + c) / (m**2 + 1)**0.5
+            df_cluster['distance from best-fit'] = abs(m * speed - engine + c) / (m**2 + 1)**0.5
 
-            df_for_label, removing_low = remove_outliers(df_for_label,
-                                                         'below',
-                                                         PERCTILE_ERROR_REMOVAL,
-                                                         -1 * MAX_ERROR)
-            df_for_label, removing_high = remove_outliers(df_for_label,
-                                                          'above',
-                                                          100 - PERCTILE_ERROR_REMOVAL,
-                                                          MAX_ERROR)
-
-            speed = df_for_label[SPEED]
-            engine = df_for_label[ENGINE]
+            df_cluster, removing_low = remove_outliers(df_cluster,
+                                                       'below',
+                                                       PERCTILE_ERROR_REMOVAL,
+                                                       -1 * MAX_ERROR)
+            df_cluster, removing_high = remove_outliers(df_cluster,
+                                                        'above',
+                                                        100 - PERCTILE_ERROR_REMOVAL,
+                                                        MAX_ERROR)
+            speed = df_cluster[SPEED]
+            engine = df_cluster[ENGINE]
 
         # Add cluster
-        fig.add_trace(go.Scatter(
+        fig2.add_trace(go.Scatter(
                                  x=speed,
                                  y=engine,
                                  mode='markers',
@@ -123,20 +146,16 @@ def main():
                                 ))
 
         # Add best-fit line for cluster
-        fig.add_trace(go.Scatter(
-                                 x=df_for_label[SPEED],
+        fig2.add_trace(go.Scatter(
+                                 x=speed,
                                  y=ols(speed, engine),
                                  mode='lines',
                                  marker_color='black',
                                  name=f'Best-Fit for Gear {gear_number}',
                                 ))
 
-    # Update titles
-    fig.update_layout(title_text='Engine RPMs vs. Car Speed', showlegend=True)
-    fig.update_xaxes(title='Car Speed (mph)')
-    fig.update_yaxes(title='Engine (RPMs)')
-    fig.show()
-    fig.write_image('Engine RPMs vs. Car Speed.png')
+    fig2 = update_figure_layout(fig2, True)
+    fig2.write_image('Engine RPMs vs. Car Speed with clustering.png')
 
 
 if __name__ == '__main__':
