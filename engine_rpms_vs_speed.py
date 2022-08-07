@@ -20,7 +20,7 @@ SPEED = 'Speed (OBD)(mph)'
 ENGINE = ' Engine RPM(rpm)'
 
 # Define parameters for removing outliers
-MAX_ERROR = 140
+MAX_ERROR = 1
 PERCTILE_ERROR_REMOVAL = 2
 
 
@@ -100,7 +100,7 @@ def main():
         removing_high = True
         while removing_low or removing_high:
             m, c = mc(speed, engine)
-            df_for_label['distance from best-fit'] = engine - m * speed + c  # TODO use Euclidean distance
+            df_for_label['distance from best-fit'] = abs(m * speed - engine + c) / (m**2 + 1)**0.5
 
             df_for_label, removing_low = remove_outliers(df_for_label,
                                                          'below',
