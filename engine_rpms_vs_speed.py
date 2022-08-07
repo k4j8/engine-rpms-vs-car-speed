@@ -19,6 +19,10 @@ SOURCE = 'rpms_chart_from_obd.xlsx'
 SPEED = 'Speed (OBD)(mph)'
 ENGINE = ' Engine RPM(rpm)'
 
+# Define parameters for removing outliers
+MAX_ERROR = 140
+PERCTILE_ERROR_REMOVAL = 2
+
 
 def mc(x, y):
     """Calculate ordinary least squares parameters
@@ -38,6 +42,26 @@ def ols(x, y):
     m, c = mc(x, y)
 
     return m * x + c
+
+
+def remove_outliers(df, direction, percentile_target, error):
+    """Remove outliers"""
+
+    percentile_value = np.percentile(df['distance from best-fit'],
+                                     percentile_target)
+    rows_before = len(df)
+    if direction == 'below':
+        if percentile_value <= error:
+            df.drop(df[df['distance from best-fit'] < percentile_value].index,
+                    inplace=True)
+    elif direction == 'above':
+        if percentile_value >= error:
+            df.drop(df[df['distance from best-fit'] > percentile_value].index,
+                    inplace=True)
+
+    rows_removed = len(df) != rows_before
+
+    return df, rows_removed
 
 
 def main():
@@ -78,25 +102,14 @@ def main():
             m, c = mc(speed, engine)
             df_for_label['distance from best-fit'] = engine - m * speed + c  # TODO use Euclidean distance
 
-            percentile_low = np.percentile(df_for_label["distance from best-fit"], 3)
-            if percentile_low <= -100:
-                rows_before = len(df_for_label)
-                df_for_label.drop(df_for_label[df_for_label['distance from best-fit'] < percentile_low].index,
-                                  inplace=True)
-                if len(df_for_label) == rows_before:
-                    removing_low = False
-            else:
-                removing_low = False
-
-            percentile_high = np.percentile(df_for_label["distance from best-fit"], 97)
-            if percentile_high >= 100:
-                rows_before = len(df_for_label)
-                df_for_label.drop(df_for_label[df_for_label['distance from best-fit'] > percentile_high].index,
-                                  inplace=True)
-                if len(df_for_label) == rows_before:
-                    removing_high = False
-            else:
-                removing_high = False
+            df_for_label, removing_low = remove_outliers(df_for_label,
+                                                         'below',
+                                                         PERCTILE_ERROR_REMOVAL,
+                                                         -1 * MAX_ERROR)
+            df_for_label, removing_high = remove_outliers(df_for_label,
+                                                          'above',
+                                                          100 - PERCTILE_ERROR_REMOVAL,
+                                                          MAX_ERROR)
 
             speed = df_for_label[SPEED]
             engine = df_for_label[ENGINE]
