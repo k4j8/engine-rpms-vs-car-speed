@@ -132,10 +132,11 @@ def main():
                                 ))
 
     # Update titles
-    fig.update_layout(title_text='RPMs vs mph', showlegend=True)
-    fig.update_xaxes(title='Speed (mph)')
+    fig.update_layout(title_text='Engine RPMs vs. Car Speed', showlegend=True)
+    fig.update_xaxes(title='Car Speed (mph)')
     fig.update_yaxes(title='Engine (RPMs)')
     fig.show()
+    fig.write_image('Engine RPMs vs. Car Speed.png')
 
 
 if __name__ == '__main__':
