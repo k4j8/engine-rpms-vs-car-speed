@@ -6,6 +6,8 @@ gear number
 
 # pylint: disable=invalid-name
 
+import os
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -98,6 +100,10 @@ def main():
     kmeans = KMeans(n_clusters=GEARS).fit(data_1d)
     df['label'] = kmeans.labels_
 
+    # Create folder for images
+    if not os.path.exists('images'):
+        os.mkdir('images')
+
     # Graph raw data
     fig1 = go.Figure()
     fig1.add_trace(go.Scatter(
@@ -106,7 +112,8 @@ def main():
                              mode='markers',
                             ))
     update_figure_layout(fig1, False)
-    fig1.write_image('Engine RPMs vs. Car Speed without clustering.png')
+    fig1.write_image(os.path.join('images',
+        'Engine RPMs vs. Car Speed without clustering.png'))
 
     # Graph with clustering and removing outliers
     centers = kmeans.cluster_centers_[:, 0]  # centers of each cluster
@@ -155,7 +162,8 @@ def main():
                                 ))
 
     fig2 = update_figure_layout(fig2, True)
-    fig2.write_image('Engine RPMs vs. Car Speed with clustering.png')
+    fig2.write_image(os.path.join('images',
+        'Engine RPMs vs. Car Speed with clustering.png'))
 
 
 if __name__ == '__main__':
