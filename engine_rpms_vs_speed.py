@@ -9,6 +9,7 @@ gear number
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+
 from sklearn.cluster import KMeans
 
 # Define source data
@@ -19,13 +20,22 @@ SPEED = 'Speed (OBD)(mph)'
 ENGINE = ' Engine RPM(rpm)'
 
 
-def ols(x, y):
-    """Calculate ordinary least squares
+def mc(x, y):
+    """Calculate ordinary least squares parameters
     Code was taken from:
-    https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html"""
+    https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
+    """
 
     A = np.vstack([x, np.ones(len(x))]).T
     m, c = np.linalg.lstsq(A, y, rcond=None)[0]
+
+    return m, c
+
+
+def ols(x, y):
+    """Calculate OLS line"""
+
+    m, c = mc(x, y)
 
     return m * x + c
 
@@ -58,10 +68,38 @@ def main():
     fig = go.Figure()
     for i, cluster in enumerate(clusters):
         gear_number = i + 1
-        df_for_label = df[df['label'] == cluster]  # get df for this cluster only
+        df_for_label = df[df['label'] == cluster].copy()  # get df for this cluster only
 
         speed = df_for_label[SPEED]
         engine = df_for_label[ENGINE]
+        removing_low = True
+        removing_high = True
+        while removing_low or removing_high:
+            m, c = mc(speed, engine)
+            df_for_label['distance from best-fit'] = engine - m * speed + c  # TODO use Euclidean distance
+
+            percentile_low = np.percentile(df_for_label["distance from best-fit"], 3)
+            if percentile_low <= -100:
+                rows_before = len(df_for_label)
+                df_for_label.drop(df_for_label[df_for_label['distance from best-fit'] < percentile_low].index,
+                                  inplace=True)
+                if len(df_for_label) == rows_before:
+                    removing_low = False
+            else:
+                removing_low = False
+
+            percentile_high = np.percentile(df_for_label["distance from best-fit"], 97)
+            if percentile_high >= 100:
+                rows_before = len(df_for_label)
+                df_for_label.drop(df_for_label[df_for_label['distance from best-fit'] > percentile_high].index,
+                                  inplace=True)
+                if len(df_for_label) == rows_before:
+                    removing_high = False
+            else:
+                removing_high = False
+
+            speed = df_for_label[SPEED]
+            engine = df_for_label[ENGINE]
 
         # Add cluster
         fig.add_trace(go.Scatter(
