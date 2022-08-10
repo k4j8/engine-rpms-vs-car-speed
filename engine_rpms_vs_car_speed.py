@@ -14,11 +14,11 @@ import plotly.graph_objects as go
 from sklearn.cluster import KMeans
 
 # Define source data (required)
-SOURCE = 'rpms_chart_from_obd.xlsx'
+SOURCES = ['rpms_chart_from_obd.csv']
 
 # Define column names from data (required)
 SPEED = 'Speed (OBD)(mph)'
-ENGINE = ' Engine RPM(rpm)'
+ENGINE = 'Engine RPM(rpm)'
 
 # Define parameters for removing outliers (can leave at defaults below)
 GEARS = 5
@@ -84,7 +84,9 @@ def main():
     """Import data, perform clustering, then plot result"""
 
     # Import data
-    df = pd.read_excel(SOURCE, usecols=[SPEED, ENGINE])
+    df_list = [pd.read_csv(source, usecols=[SPEED, ENGINE])
+               for source in SOURCES]
+    df = pd.concat(df_list)
 
     # Calculate ratio of RPMs to mph
     df['ratio'] = df[ENGINE] / df[SPEED]
